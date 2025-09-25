@@ -1,0 +1,190 @@
+name: Advanced Accessibility Scanning
+
+on:
+  pull_request:
+  push:
+    branches: [ main ]
+  schedule:
+    # Run comprehensive scans weekly
+    - cron: '0 2 * * 1'
+
+jobs:
+  # Basic scan for PRs
+  quick-scan:
+    name: Quick Accessibility Check
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+      
+      - name: Install & Build
+        run: |
+          npm ci
+          npm run build
+          npm start &
+          npx wait-on http://localhost:3000
+      
+      - name: Quick Accessibility Scan
+        uses: ada-platform/github-actions@v1
+        with:
+          server-url: 'http://localhost:3000'
+          api-key: ${{ secrets.ADA_API_KEY }}
+          scan-strategy: 'single'
+          wcag-level: 'AA'
+          threshold: 85
+          fail-on-violations: true
+          comment-pr: true
+
+  # Comprehensive scan for main branch and scheduled runs
+  comprehensive-scan:
+    name: Comprehensive Accessibility Scan
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' || github.event_name == 'schedule'
+    
+    strategy:
+      matrix:
+        # Test different environments
+        environment:
+          - { name: 'production', url: 'https://myapp.com' }
+          - { name: 'staging', url: 'https://staging.myapp.com' }
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Comprehensive Accessibility Scan - ${{ matrix.environment.name }}
+        uses: ada-platform/github-actions@v1
+        with:
+          server-url: ${{ matrix.environment.url }}
+          api-key: ${{ secrets.ADA_API_KEY }}
+          
+          # Advanced scanning options
+          scan-strategy: 'crawl'
+          max-pages: 50
+          wcag-level: 'AAA'
+          threshold: 75
+          include-best-practices: true
+          include-experimental: false
+          
+          # Custom scanning paths (if using 'paths' strategy)
+          # scan-paths: |
+          #   /
+          #   /about
+          #   /products
+          #   /contact
+          #   /dashboard
+          
+          # Advanced configuration
+          health-check-path: '/health'
+          health-check-timeout: 45
+          custom-headers: |
+            {
+              "Authorization": "Bearer ${{ secrets.TEST_TOKEN }}",
+              "X-Environment": "${{ matrix.environment.name }}"
+            }
+          
+          # Reporting
+          report-formats: 'json,html,markdown'
+          upload-artifacts: true
+          
+          # Don't fail on violations for comprehensive scans (just report)
+          fail-on-violations: false
+
+      # Send notifications for comprehensive scans
+      - name: Notify Team
+        if: failure() || success()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const { data: workflowRun } = await github.rest.actions.getWorkflowRun({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              run_id: context.runId
+            });
+            
+            console.log(`Comprehensive accessibility scan completed for ${{ matrix.environment.name }}`);
+            console.log(`Status: ${workflowRun.conclusion}`);
+            console.log(`View results: ${workflowRun.html_url}`);
+
+  # Security-focused scan
+  security-accessibility-scan:
+    name: Security & Accessibility Scan
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'security')
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup with Security Headers
+        run: |
+          npm ci
+          # Build with security headers enabled
+          NODE_ENV=production SECURITY_HEADERS=true npm run build
+          npm start &
+          npx wait-on http://localhost:3000
+      
+      - name: Security-focused Accessibility Scan
+        uses: ada-platform/github-actions@v1
+        with:
+          server-url: 'http://localhost:3000'
+          api-key: ${{ secrets.ADA_API_KEY }}
+          
+          # Include all accessibility best practices
+          wcag-level: 'AAA'
+          include-best-practices: true
+          include-experimental: true
+          
+          # Strict threshold for security-sensitive changes
+          threshold: 90
+          fail-on-violations: true
+          
+          # Custom user agent for security testing
+          user-agent: 'ADA-Security-Scanner/1.0'
+          
+          # Enhanced reporting for security review
+          report-formats: 'json,html,markdown'
+          comment-pr: true
+          upload-artifacts: true
+
+  # Mobile accessibility scan
+  mobile-accessibility-scan:
+    name: Mobile Accessibility Check
+    runs-on: ubuntu-latest
+    if: contains(github.event.pull_request.labels.*.name, 'mobile')
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup for Mobile Testing
+        run: |
+          npm ci
+          # Build with mobile optimizations
+          MOBILE_BUILD=true npm run build
+          npm start &
+          npx wait-on http://localhost:3000
+      
+      - name: Mobile Accessibility Scan
+        uses: ada-platform/github-actions@v1
+        with:
+          server-url: 'http://localhost:3000'
+          api-key: ${{ secrets.ADA_API_KEY }}
+          
+          # Mobile-specific configuration would be handled by the scanner
+          # based on viewport and user agent
+          scan-strategy: 'sitemap'
+          max-pages: 20
+          wcag-level: 'AA'
+          threshold: 80
+          
+          # Mobile-specific user agent
+          user-agent: 'Mozilla/5.0 (iPhone; CPU iPhone OS 15_0 like Mac OS X) AppleWebKit/605.1.15 ADA-Mobile-Scanner/1.0'
+          
+          report-formats: 'json,html'
+          comment-pr: true
+          upload-artifacts: true

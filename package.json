@@ -1,0 +1,55 @@
+{
+  "name": "ada-accessibility-scanner-action",
+  "version": "2.0.0",
+  "description": "GitHub Action for automated accessibility testing with ADA Platform (Self-hosted & SaaS modes)",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "lint": "eslint *.js src/**/*.js",
+    "format": "prettier --write *.js src/**/*.js",
+    "build:scanner": "docker build -f Dockerfile.scanner -t ada-scanner:latest .",
+    "start:scanner": "docker-compose -f docker-compose.ci.yml up",
+    "stop:scanner": "docker-compose -f docker-compose.ci.yml down"
+  },
+  "keywords": [
+    "accessibility",
+    "a11y",
+    "wcag",
+    "github-action",
+    "testing",
+    "axe-core",
+    "ada-platform",
+    "self-hosted",
+    "playwright"
+  ],
+  "author": "ADA Platform Team",
+  "license": "MIT",
+  "dependencies": {
+    "@actions/core": "^1.10.0",
+    "@actions/exec": "^1.1.1",
+    "@actions/github": "^5.1.1",
+    "@actions/artifact": "^1.1.2",
+    "axe-core": "^4.8.3",
+    "express": "^4.18.2",
+    "node-fetch": "^2.6.7",
+    "playwright": "^1.45.0",
+    "uuid": "^9.0.0",
+    "jsdom": "^22.1.0",
+    "xml2js": "^0.6.2"
+  },
+  "devDependencies": {
+    "eslint": "^8.45.0",
+    "prettier": "^3.0.0"
+  },
+  "engines": {
+    "node": ">=16"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ada-platform/github-actions"
+  },
+  "bugs": {
+    "url": "https://github.com/ada-platform/github-actions/issues"
+  },
+  "homepage": "https://ada-platform.com"
+}

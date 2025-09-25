@@ -1,0 +1,58 @@
+version: '3.8'
+
+services:
+  # Lightweight scanner service for CI/CD
+  ada-scanner:
+    build:
+      context: .
+      dockerfile: Dockerfile.scanner
+    container_name: ada-scanner-ci
+    environment:
+      - NODE_ENV=ci
+      - SCANNER_MODE=self-hosted
+      - SESSION_TOKEN=${SESSION_TOKEN}
+      - ACCOUNT_CONFIG=${ACCOUNT_CONFIG}
+      - MAX_PAGES=${MAX_PAGES:-10}
+      - WCAG_LEVEL=${WCAG_LEVEL:-AA}
+      - INCLUDE_BEST_PRACTICES=${INCLUDE_BEST_PRACTICES:-true}
+      - INCLUDE_EXPERIMENTAL=${INCLUDE_EXPERIMENTAL:-false}
+      # Browser configuration
+      - PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
+      - BROWSER_HEADLESS=true
+      - BROWSER_TIMEOUT=30000
+      # Reporting
+      - REPORT_TO_SAAS=${REPORT_TO_SAAS:-false}
+      - API_URL=${API_URL:-https://api.ada-platform.com}
+    ports:
+      - "3003:3003" # Scanner API port
+    volumes:
+      - ./scan-results:/app/results
+      - /tmp/.X11-unix:/tmp/.X11-unix:rw # For non-headless debugging
+    networks:
+      - ada-ci-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3003/health"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 10s
+    # Use host network mode to access localhost apps
+    # Comment out the ports and networks above, uncomment below for host mode
+    # network_mode: host
+
+  # Minimal Redis for job queuing (optional, can run synchronously)
+  redis:
+    image: redis:7-alpine
+    container_name: ada-redis-ci
+    command: redis-server --maxmemory 128mb --maxmemory-policy allkeys-lru
+    networks:
+      - ada-ci-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+networks:
+  ada-ci-network:
+    driver: bridge

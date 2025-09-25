@@ -1,0 +1,98 @@
+name: 'ADA Accessibility Scanner'
+description: 'Automated accessibility testing for web applications'
+author: 'ADA Platform Team'
+branding:
+  icon: 'eye'
+  color: 'blue'
+
+inputs:
+  # Required Server Configuration
+  server-url:
+    description: 'Base URL of the running application to scan'
+    required: true
+  
+  # Health Check Configuration
+  health-check-path:
+    description: 'Path for health checking the server'
+    default: '/'
+  health-check-timeout:
+    description: 'Seconds to wait for server health check'
+    default: '30'
+  
+  # Scanning Configuration
+  scan-strategy:
+    description: 'Page discovery strategy (single, sitemap, crawl, paths)'
+    default: 'single'
+  scan-paths:
+    description: 'Specific paths to scan (newline separated, used with paths strategy)'
+    required: false
+  max-pages:
+    description: 'Maximum number of pages to scan'
+    default: '10'
+  
+  # Accessibility Configuration  
+  wcag-level:
+    description: 'WCAG compliance level (A, AA, AAA)'
+    default: 'AA'
+  fail-on-violations:
+    description: 'Fail the action if violations are found'
+    default: 'true'
+  threshold:
+    description: 'Minimum accessibility score (0-100)'
+    default: '80'
+  include-best-practices:
+    description: 'Include accessibility best practices in scan'
+    default: 'true'
+  include-experimental:
+    description: 'Include experimental accessibility rules'
+    default: 'false'
+  
+  # ADA Platform Integration
+  api-key:
+    description: 'ADA Platform API key'
+    required: true
+  api-url:
+    description: 'ADA Platform API URL'
+    default: 'https://api.ada-platform.com'
+  
+  # Reporting Configuration
+  report-formats:
+    description: 'Report formats to generate (json, html, markdown)'
+    default: 'json,html'
+  comment-pr:
+    description: 'Post results as PR comment'
+    default: 'true'
+  upload-artifacts:
+    description: 'Upload reports as GitHub artifacts'
+    default: 'true'
+  
+  # Advanced Configuration
+  custom-headers:
+    description: 'Custom HTTP headers (JSON format)'
+    required: false
+  user-agent:
+    description: 'Custom user agent string'
+    required: false
+
+outputs:
+  scan-id:
+    description: 'Unique identifier for this scan'
+  score:
+    description: 'Overall accessibility score (0-100)'
+  violations-count:
+    description: 'Number of accessibility violations found'
+  pages-scanned:
+    description: 'Number of pages that were scanned'
+  report-url:
+    description: 'URL to the detailed accessibility report'
+  report-html:
+    description: 'Path to the HTML report file'
+  report-json:
+    description: 'Path to the JSON report file'
+  success:
+    description: 'Whether the scan passed the specified threshold'
+
+runs:
+  using: 'node16'
+  main: 'index.js'
+  post: 'cleanup.js'

@@ -1,0 +1,27 @@
+# Lightweight scanner image for self-hosted CI/CD
+FROM mcr.microsoft.com/playwright:v1.45.0-focal
+
+WORKDIR /app
+
+# Install Node.js dependencies
+RUN apt-get update && apt-get install -y \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy package files
+COPY package*.json ./
+
+# Install dependencies
+RUN npm ci --omit=dev
+
+# Copy scanner source code
+COPY src/ ./src/
+
+# Create results directory
+RUN mkdir -p /app/results
+
+# Health check endpoint
+EXPOSE 3003
+
+# Start scanner service
+CMD ["node", "src/scanner-service.js"]

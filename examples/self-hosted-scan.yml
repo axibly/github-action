@@ -1,0 +1,173 @@
+name: Accessibility Check (Self-Hosted)
+
+# This example demonstrates the self-hosted scanner mode
+# The scanner runs locally in Docker, perfect for CI/CD environments
+
+on:
+  pull_request:
+    branches: [ main, develop ]
+  push:
+    branches: [ main ]
+
+jobs:
+  accessibility-scan:
+    name: ADA Self-Hosted Accessibility Scan
+    runs-on: ubuntu-latest
+    
+    steps:
+      # Checkout code
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # Setup Node.js
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+
+      # Install dependencies
+      - name: Install dependencies
+        run: npm ci
+
+      # Build application
+      - name: Build application
+        run: npm run build
+
+      # Start application server
+      - name: Start application server
+        run: |
+          npm start &
+          echo "APPLICATION_PID=$!" >> $GITHUB_ENV
+          echo "Started application server in background"
+          
+          # Wait for application to be ready
+          npx wait-on http://localhost:3000 --timeout 60000 || {
+            echo "Application failed to start"
+            exit 1
+          }
+        env:
+          NODE_ENV: test
+          PORT: 3000
+
+      # Run ADA Accessibility Scan (Self-Hosted Mode)
+      # The action will automatically detect localhost URL and use self-hosted scanner
+      - name: Run ADA Accessibility Scan
+        uses: ada-platform/github-actions@v2
+        with:
+          # Target URL - localhost automatically triggers self-hosted mode
+          server-url: 'http://localhost:3000'
+          
+          # API key for account validation and usage tracking
+          # Even self-hosted mode needs this for account limits
+          api-key: ${{ secrets.ADA_API_KEY }}
+          
+          # Scanning configuration
+          scan-strategy: 'crawl'        # Options: single, crawl, sitemap, paths
+          scan-paths: |                 # Used with 'paths' strategy
+            /
+            /about
+            /products
+            /contact
+          max-pages: 20                 # Will be capped by account limits
+          
+          # Accessibility standards
+          wcag-level: 'AA'              # Options: A, AA, AAA
+          include-best-practices: true  # Include additional best practices
+          include-experimental: false   # Include experimental rules
+          
+          # Thresholds and enforcement
+          threshold: 85                 # Minimum score to pass (0-100)
+          fail-on-violations: true      # Fail the action if below threshold
+          
+          # Reporting options
+          report-formats: 'json,html,markdown'
+          comment-pr: true              # Add results as PR comment
+          upload-artifacts: true        # Upload reports as artifacts
+          
+          # Advanced options
+          health-check-timeout: 30      # Seconds to wait for server
+          custom-headers: |             # Custom headers for authenticated routes
+            {
+              "Authorization": "Bearer test-token",
+              "X-Test-Mode": "true"
+            }
+          
+        env:
+          # Optional: Force mode selection (normally auto-detected)
+          # ADA_FORCE_MODE: 'self-hosted'
+          
+          # Optional: Additional scanner configuration
+          BROWSER_HEADLESS: true
+          BROWSER_TIMEOUT: 30000
+
+      # Upload scan results as artifacts (backup if action upload fails)
+      - name: Upload scan results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: accessibility-scan-results
+          path: |
+            ada-reports/
+            ada-platform/integrations/github-actions/scan-results/
+          retention-days: 30
+
+      # Stop application server
+      - name: Stop application server
+        if: always()
+        run: |
+          if [ ! -z "$APPLICATION_PID" ]; then
+            echo "Stopping application server (PID: $APPLICATION_PID)"
+            kill $APPLICATION_PID || true
+          fi
+
+      # Output scan summary
+      - name: Display scan summary
+        if: always()
+        run: |
+          echo "## Accessibility Scan Summary"
+          echo "Score: ${{ steps.scan.outputs.score }}/100"
+          echo "Violations: ${{ steps.scan.outputs.violations-count }}"
+          echo "Pages Scanned: ${{ steps.scan.outputs.pages-scanned }}"
+          echo "Scan ID: ${{ steps.scan.outputs.scan-id }}"
+          
+          if [ -f "ada-reports/accessibility-report.json" ]; then
+            echo "### Top Violations:"
+            jq '.summary.violationsBySeverity' ada-reports/accessibility-report.json
+          fi
+
+  # Optional: Run parallel scans with different browsers
+  multi-browser-scan:
+    name: Multi-Browser Accessibility Test
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        browser: [chromium, firefox, webkit]
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup and start application
+        run: |
+          npm ci
+          npm run build
+          npm start &
+          npx wait-on http://localhost:3000
+
+      - name: Run scan with ${{ matrix.browser }}
+        uses: ada-platform/github-actions@v2
+        with:
+          server-url: 'http://localhost:3000'
+          api-key: ${{ secrets.ADA_API_KEY }}
+          scan-strategy: 'single'
+          wcag-level: 'AA'
+          threshold: 80
+        env:
+          SCANNER_BROWSER: ${{ matrix.browser }}
+
+      - name: Upload ${{ matrix.browser }} results
+        uses: actions/upload-artifact@v4
+        with:
+          name: scan-results-${{ matrix.browser }}
+          path: ada-reports/

@@ -1,0 +1,78 @@
+name: Accessibility Check
+
+# Run accessibility scans on pull requests and main branch
+on:
+  pull_request:
+    branches: [ main, develop ]
+  push:
+    branches: [ main ]
+
+jobs:
+  accessibility-scan:
+    name: ADA Accessibility Scan
+    runs-on: ubuntu-latest
+    
+    steps:
+      # Checkout code
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # Setup Node.js (adjust version as needed)
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+
+      # Install dependencies
+      - name: Install dependencies
+        run: npm ci
+
+      # Build the application
+      - name: Build application
+        run: npm run build
+
+      # Start the application server
+      - name: Start application
+        run: |
+          npm start &
+          echo "Started server in background"
+          # Wait for server to be ready
+          npx wait-on http://localhost:3000 --timeout 60000
+        env:
+          NODE_ENV: test
+          PORT: 3000
+
+      # Run accessibility scan
+      - name: Run ADA Accessibility Scan
+        uses: ada-platform/github-actions@v1
+        with:
+          # Required: Server URL to scan
+          server-url: 'http://localhost:3000'
+          
+          # Required: ADA Platform API key
+          api-key: ${{ secrets.ADA_API_KEY }}
+          
+          # Scanning configuration
+          scan-strategy: 'sitemap'  # Options: single, sitemap, crawl, paths
+          max-pages: 10
+          wcag-level: 'AA'         # Options: A, AA, AAA
+          threshold: 80            # Minimum score to pass
+          fail-on-violations: true
+          
+          # Reporting
+          report-formats: 'json,html,markdown'
+          comment-pr: true
+          upload-artifacts: true
+          
+          # GitHub token for PR comments (optional)
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      # Upload reports as artifacts (if not done automatically)
+      - name: Upload Accessibility Reports
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: accessibility-reports
+          path: ada-reports/
+          retention-days: 30
